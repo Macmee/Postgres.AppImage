@@ -78,7 +78,8 @@ chown "$userRunningAs" $CONFIG_FILE || sudo chown "$userRunningAs" $CONFIG_FILE
 
 TEMP_DB_PATH=$(mktemp -d /tmp/postgresql-temp-db-XXXX)
 dbPath=$([ "$(arg path)" = "" ] && echo "$TEMP_DB_PATH" || arg path)
-chown -R "$userRunningAs" $dbPath || chown -R "$userRunningAs" $dbPath
+! [ -d "$dbPath" ] && mkdir -p $dbPath
+chown -R "$userRunningAs" $dbPath || sudo chown -R "$userRunningAs" $dbPath
 rm -f $dbPath/.DS_Store
 shouldInitDb=$([ -z "$(ls -A $dbPath)" ] && echo true || echo false)
 $shouldInitDb && $suCmd "$userRunningAs" bash -c "$customEnv initdb --locale=$useLocale -D $dbPath --noclean" && printf "host all all 0.0.0.0/0 md5\nlocal all all trust\n" >> "$dbPath/pg_hba.conf"
@@ -92,7 +93,7 @@ $shouldInitDb && $suCmd "$userRunningAs" bash -c "$customEnv initdb --locale=$us
 
 TEMP_LOG_PATH=$(mktemp /tmp/postgresql-logs-XXXX)
 touch $TEMP_LOG_PATH
-chown "$userRunningAs" $TEMP_LOG_PATH || chown "$userRunningAs" $TEMP_LOG_PATH
+chown "$userRunningAs" $TEMP_LOG_PATH || sudo chown "$userRunningAs" $TEMP_LOG_PATH
 logFile=$([ "$(arg log)" = "" ] && echo "$TEMP_LOG_PATH" || arg log)
 
 # start! LD_DEBUG=libs
@@ -114,7 +115,7 @@ fi
 
 function siginthandler() {
   $suCmd "$userRunningAs" bash -c "$customEnv pg_ctl stop -o '-c config_file=$CONFIG_FILE' -D $dbPath"
-  #rm -rf $CONFIG_FILE $TEMP_DB_PATH $TEMP_LOG_PATH
+  rm -rf $CONFIG_FILE $TEMP_DB_PATH $TEMP_LOG_PATH
   exit
 }
 trap 'siginthandler' EXIT

@@ -57,8 +57,9 @@ cp -r /etc/postgresql $SCRIPT_DIR/$arch/root/etc/postgresql
 mkdir -p $SCRIPT_DIR/$arch/root/var/lib/postgresql/12
 mkdir -p /var/run/postgresql
 
-chmod -R 755 $SCRIPT_DIR/$arch/root/var/lib/postgresql
-chmod -R 755 $SCRIPT_DIR/$arch/root/etc/postgresql
+chmod -R 775 $SCRIPT_DIR/$arch/root/var/lib/postgresql
+chmod -R 775 $SCRIPT_DIR/$arch/root/usr/lib/postgresql
+chmod -R 775 $SCRIPT_DIR/$arch/root/etc/postgresql
 
 # now build the app image
 
