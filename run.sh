@@ -8,7 +8,7 @@ arg() { echo $allArgs | grep "\-\-$1 " | grep -Ev "\-\-$1 \-\-[a-z]" | sed -e "s
 
 BASE="$APPDIR/root"
 
-customEnv="PATH=$BASE/usr/lib/postgresql/12/bin LD_LIBRARY_PATH=$BASE/usr/lib"
+customEnv="PATH=$PATH:$BASE/usr/lib/postgresql/12/bin LD_LIBRARY_PATH=$BASE/usr/lib"
 
 # some distros (fedora docker image) dont have su so we need to use sudo
 
