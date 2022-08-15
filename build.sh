@@ -1,5 +1,6 @@
 #!/bin/bash
 
+#set -x
 # DOCKER_DEFAULT_PLATFORM=linux/amd64 docker run --rm -v $HOME/scrapyard/portable-postgres:$SCRIPT_DIR -it debian:buster /bin/bash
 
 
@@ -51,10 +52,13 @@ chmod 777 $SCRIPT_DIR/$arch/root/usr/lib/libm.so.6
 cp -r /usr/lib/postgresql $SCRIPT_DIR/$arch/root/usr/lib/postgresql
 cp -r /usr/share/postgresql $SCRIPT_DIR/$arch/root/usr/share/postgresql
 cp -r /etc/postgresql $SCRIPT_DIR/$arch/root/etc/postgresql
-#cp -r /var/lib/postgresql $SCRIPT_DIR/$arch/root/var/lib/postgresql
-cp -r /var/run/postgresql $SCRIPT_DIR/$arch/root/var/run/postgresql
+#cp -r /var/run/postgresql $SCRIPT_DIR/$arch/root/var/run/postgresql
 
 mkdir -p $SCRIPT_DIR/$arch/root/var/lib/postgresql/12
+mkdir -p /var/run/postgresql
+
+chmod -R 755 $SCRIPT_DIR/$arch/root/var/lib/postgresql
+chmod -R 755 $SCRIPT_DIR/$arch/root/etc/postgresql
 
 # now build the app image
 

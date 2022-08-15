@@ -1,9 +1,10 @@
 #!/bin/bash
 
-#set -x
+set -x
 
 allArgs="$@" # cute little helper to read "--name value" arguments!
 arg() { echo $allArgs | grep "\-\-$1 " | grep -Ev "\-\-$1 \-\-[a-z]" | sed -e "s/^.*\-\-$1 \([^ ^$]*\).*$/\1/" ; }
+
 
 BASE="$APPDIR/root"
 
@@ -22,18 +23,25 @@ if ! [ "$1" = "" ] && [ -f "$BASE/usr/lib/postgresql/12/bin/$1" ]; then
   exit $?
 fi
 
-# otherwise we want to start the database and/or init a new one... start by creating a postgres user
+# we arent allowed to run postgres as root, so if we're root make a new user
 
-mkdir -p /home/postgres
-useradd -d /home/postgres postgres
-chown postgres /home/postgres
+userRunningAs=$([ "$(whoami)" = "root" ] && echo "postgres" || echo "$(whoami)")
+if [ "$userRunningAs" = "postgres" ] && ! id -u "postgres" >/dev/null 2>&1; then
+  mkdir -p /home/postgres
+  useradd -d /home/postgres postgres || sudo useradd -d /home/postgres postgres
+  chown "$userRunningAs" /home/postgres || sudo chown "$userRunningAs" /home/postgres
+fi
 
 # we have to turn off a bunch of settings by default
 
+CONFIG_FILE=$(mktemp /tmp/postgresql-appImage-XXXX)
+cat $BASE/etc/postgresql/12/main/postgresql.conf > $CONFIG_FILE
+
+CONFIG_SWAP_FILE=$(mktemp /tmp/postgresql-appImage-swap-XXXX)
 function deleteFromConfigFile() {
-  cat $BASE/etc/postgresql/12/main/postgresql.conf | grep -v "$1" > tmp_cfg
-  cat tmp_cfg > $BASE/etc/postgresql/12/main/postgresql.conf
-  rm -f tmp_cfg
+  cat $CONFIG_FILE | grep -v "$1" > $CONFIG_SWAP_FILE
+  cat $CONFIG_SWAP_FILE > $CONFIG_FILE
+  rm -f $CONFIG_SWAP_FILE
 }
 deleteFromConfigFile data_directory
 deleteFromConfigFile ssl_cert_file
@@ -42,15 +50,14 @@ deleteFromConfigFile "ssl = on"
 deleteFromConfigFile listen_addresses
 deleteFromConfigFile stats_temp_directory
 deleteFromConfigFile hba_file
+deleteFromConfigFile include_dir
 
-echo "listen_addresses = '*'" >> $BASE/etc/postgresql/12/main/postgresql.conf
-echo "stats_temp_directory = 'stats'" >> $BASE/etc/postgresql/12/main/postgresql.conf
+echo "listen_addresses = '*'" >> $CONFIG_FILE
+echo "stats_temp_directory = 'stats'" >> $CONFIG_FILE
 
-mkdir -p /var/run/postgresql
-chown -R postgres /var/run/postgresql
-chown -R postgres $BASE/var/lib/postgresql
-chown -R postgres $BASE/var/run/postgresql
-chown -R postgres $BASE/etc/postgresql
+mkdir -p /var/run/postgresql/
+touch /var/run/postgresql/.s.PGSQL.5432
+chown -R "$userRunningAs" /var/run/postgresql/ || sudo chown -R "$userRunningAs" /var/run/postgresql/
 
 # respect given locale and fallback to en_US.utf8 if needed
 
@@ -61,43 +68,53 @@ deleteFromConfigFile lc_messages
 deleteFromConfigFile lc_monetary
 deleteFromConfigFile lc_numeric
 deleteFromConfigFile lc_time
-echo "lc_messages = '$useLocale'" >> $BASE/etc/postgresql/12/main/postgresql.conf
-echo "lc_monetary = '$useLocale'" >> $BASE/etc/postgresql/12/main/postgresql.conf
-echo "lc_numeric = '$useLocale'" >> $BASE/etc/postgresql/12/main/postgresql.conf
-echo "lc_time = '$useLocale'" >> $BASE/etc/postgresql/12/main/postgresql.conf
+echo "lc_messages = '$useLocale'" >> $CONFIG_FILE
+echo "lc_monetary = '$useLocale'" >> $CONFIG_FILE
+echo "lc_numeric = '$useLocale'" >> $CONFIG_FILE
+echo "lc_time = '$useLocale'" >> $CONFIG_FILE
+chown "$userRunningAs" $CONFIG_FILE || sudo chown "$userRunningAs" $CONFIG_FILE
 
 # resolve the database path and init the db there if the folder is empty
 
-dbPath=$([ "$(arg path)" = "" ] && echo "$BASE/var/lib/postgresql/12/main" || arg path)
-chown -R postgres $dbPath
+TEMP_DB_PATH=$(mktemp -d /tmp/postgresql-temp-db-XXXX)
+dbPath=$([ "$(arg path)" = "" ] && echo "$TEMP_DB_PATH" || arg path)
+chown -R "$userRunningAs" $dbPath || chown -R "$userRunningAs" $dbPath
 rm -f $dbPath/.DS_Store
 shouldInitDb=$([ -z "$(ls -A $dbPath)" ] && echo true || echo false)
-$shouldInitDb && $suCmd postgres bash -c "$customEnv initdb --locale=$useLocale -D $dbPath --noclean" && printf "host all all 0.0.0.0/0 md5\nlocal all all trust\n" >> "$dbPath/pg_hba.conf"
+$shouldInitDb && $suCmd "$userRunningAs" bash -c "$customEnv initdb --locale=$useLocale -D $dbPath --noclean" && printf "host all all 0.0.0.0/0 md5\nlocal all all trust\n" >> "$dbPath/pg_hba.conf"
 ! [ -d "$dbPath/stats" ] && $suCmd postgres bash -c "mkdir $dbPath/stats"
 
 # need to make sure address can connect
 
 ! [ -f "$dbPath/pg_hba.conf" ] && printf "host all all 0.0.0.0/0 md5\nlocal all all trust\n" > "$dbPath/pg_hba.conf"
 
-# LD_DEBUG=libs 
-logFile=$([ "$(arg log)" = "" ] && echo "$BASE/postgres.log" || arg log)
-$suCmd postgres bash -c "$customEnv pg_ctl start -o '-c config_file=$BASE/etc/postgresql/12/main/postgresql.conf' -D $dbPath" >> $logFile 2>> $logFile
+# Resolve the log file
+
+TEMP_LOG_PATH=$(mktemp /tmp/postgresql-logs-XXXX)
+touch $TEMP_LOG_PATH
+chown "$userRunningAs" $TEMP_LOG_PATH || chown "$userRunningAs" $TEMP_LOG_PATH
+logFile=$([ "$(arg log)" = "" ] && echo "$TEMP_LOG_PATH" || arg log)
+
+# start! LD_DEBUG=libs
+
+$suCmd $userRunningAs bash -c "$customEnv pg_ctl start -o '-c config_file=$CONFIG_FILE' -D $dbPath -l $logFile"
 
 # make database, user, password if needed
 
 if $shouldInitDb || ! [ "$(arg database)" = "" ]; then
   dbName=$([ "$(arg database)" = "" ] && echo "postgres" || arg database)
-  $suCmd postgres bash -c "$customEnv createdb $dbName"
+  $suCmd $userRunningAs bash -c "$customEnv createdb $dbName"
 fi
 
 if $shouldInitDb || ! [ "$(arg username)" = "" ]; then
   dbUsername=$([ "$(arg username)" = "" ] && echo "username" || arg username)
   dbPassword=$([ "$(arg password)" = "" ] && echo "password" || arg password)
-  $suCmd postgres bash -c "$customEnv psql -c \"create role $dbUsername with login password '$dbPassword'; alter user $dbUsername with SUPERUSER;\""
+  $suCmd "$userRunningAs" bash -c "$customEnv psql -c \"create role $dbUsername with login password '$dbPassword'; alter user $dbUsername with SUPERUSER;\""
 fi
 
 function siginthandler() {
-  $suCmd postgres bash -c "$customEnv pg_ctl stop -o '-c config_file=$BASE/etc/postgresql/12/main/postgresql.conf' -D $dbPath"
+  $suCmd "$userRunningAs" bash -c "$customEnv pg_ctl stop -o '-c config_file=$CONFIG_FILE' -D $dbPath"
+  #rm -rf $CONFIG_FILE $TEMP_DB_PATH $TEMP_LOG_PATH
   exit
 }
 trap 'siginthandler' EXIT
