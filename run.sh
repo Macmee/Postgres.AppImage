@@ -31,9 +31,9 @@ chown postgres /home/postgres
 # we have to turn off a bunch of settings by default
 
 function deleteFromConfigFile() {
-	cat $BASE/etc/postgresql/12/main/postgresql.conf | grep -v "$1" > tmp_cfg
-	cat tmp_cfg > $BASE/etc/postgresql/12/main/postgresql.conf
-	rm -f tmp_cfg
+  cat $BASE/etc/postgresql/12/main/postgresql.conf | grep -v "$1" > tmp_cfg
+  cat tmp_cfg > $BASE/etc/postgresql/12/main/postgresql.conf
+  rm -f tmp_cfg
 }
 deleteFromConfigFile data_directory
 deleteFromConfigFile ssl_cert_file
