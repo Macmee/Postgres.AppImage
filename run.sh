@@ -9,6 +9,7 @@ arg() { echo $allArgs | grep "\-\-$1 " | grep -Ev "\-\-$1 \-\-[a-z]" | sed -e "s
 
 BASE="$APPDIR/root"
 BIN="$BASE/usr/lib/postgresql/12/bin"
+cd $BIN
 
 customEnv="PATH=$PATH:$BIN LD_LIBRARY_PATH=$BASE/usr/lib"
 
