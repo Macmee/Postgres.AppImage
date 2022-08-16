@@ -100,7 +100,7 @@ logFile=$([ "$(arg log)" = "" ] && echo "$TEMP_LOG_PATH" || arg log)
 
 # start! LD_DEBUG=libs
 echo "BEFORE"
-$suCmd postgres bash -c "$customEnv $BIN/pg_ctl start -p $BIN/postgres -o '-c config_file=$BASE/etc/postgresql/12/main/postgresql.conf' -D $dbPath" > $logFile 2>&1
+$suCmd "$userRunningAs" bash -c "$customEnv $BIN/pg_ctl start -p $BIN/postgres -o '-c config_file=$BASE/etc/postgresql/12/main/postgresql.conf' -D $dbPath" > $logFile 2>&1
 echo "AFTER"
 
 # make database, user, password if needed
