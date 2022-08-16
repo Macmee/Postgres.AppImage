@@ -58,7 +58,7 @@ deleteFromConfigFile include_dir
 echo "listen_addresses = '*'" >> $CONFIG_FILE
 echo "stats_temp_directory = 'stats'" >> $CONFIG_FILE
 
-mkdir -p /var/run/postgresql/
+mkdir -p /var/run/postgresql/ || sudo mkdir -p /var/run/postgresql/
 touch /var/run/postgresql/.s.PGSQL.5432
 chown -R "$userRunningAs" /var/run/postgresql/ || sudo chown -R "$userRunningAs" /var/run/postgresql/
 
