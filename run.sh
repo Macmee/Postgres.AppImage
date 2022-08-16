@@ -88,7 +88,7 @@ chown -R "$userRunningAs" $dbPath || sudo chown -R "$userRunningAs" $dbPath
 rm -f $dbPath/.DS_Store
 shouldInitDb=$([ -z "$(ls -A $dbPath)" ] && echo true || echo false)
 $shouldInitDb && $runPrefix "$BIN/pg_ctl -D $dbPath -p $BIN/initdb initdb -o '--locale=$useLocale --noclean'" && printf "host all all 0.0.0.0/0 md5\nlocal all all trust\n" >> "$dbPath/pg_hba.conf"
-! [ -d "$dbPath/stats" ] && $suCmd $userRunningAs bash -c "mkdir $dbPath/stats"
+! [ -d "$dbPath/stats" ] && $runPrefix "mkdir $dbPath/stats"
 
 # need to make sure address can connect
 
@@ -109,7 +109,7 @@ echo "AFTER"
 # make database, user, password if needed
 
 if $shouldInitDb || ! [ "$(arg database)" = "" ]; then
-  dbName=$([ "$(arg database)" = "" ] && echo "postgres" || arg database)
+  dbName=$([ "$(arg database)" = "" ] && echo "$userRunningAs" || arg database)
   $runPrefix "$BIN/createdb $dbName"
 fi
 
