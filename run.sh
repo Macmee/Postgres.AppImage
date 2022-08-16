@@ -90,7 +90,7 @@ $shouldInitDb && $suCmd "$userRunningAs" bash -c "$customEnv $BIN/pg_ctl -D $dbP
 
 # need to make sure address can connect
 
-! [ -f "$dbPath/pg_hba.conf" ] && printf "host all all 0.0.0.0/0 md5\nlocal all all trust\n" > "$dbPath/pg_hba.conf"
+! [ -f "$dbPath/pg_hba.conf" ] && (printf "host all all 0.0.0.0/0 md5\nlocal all all trust\n" > "$dbPath/pg_hba.conf")
 
 # Resolve the log file
 
@@ -100,9 +100,11 @@ $shouldInitDb && $suCmd "$userRunningAs" bash -c "$customEnv $BIN/pg_ctl -D $dbP
 #logFile=$([ "$(arg log)" = "" ] && echo "$TEMP_LOG_PATH" || arg log)
 
 # start! LD_DEBUG=libs
-
+echo "BEFORE"
+echo "$suCmd $userRunningAs bash -c \"$customEnv $BIN/postgres -c config_file=$CONFIG_FILE -D $dbPath\""
 $suCmd $userRunningAs bash -c "$customEnv $BIN/postgres -c config_file=$CONFIG_FILE -D $dbPath" &
 PID=$?!
+echo "AFTER"
 
 for i in {1..20}; do
   $suCmd "$userRunningAs" bash -c "$customEnv $BIN/psql -c \"select now();\"" && break
