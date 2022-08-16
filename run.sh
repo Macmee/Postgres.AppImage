@@ -10,7 +10,8 @@ BASE="$APPDIR/root"
 BIN="$BASE/usr/lib/postgresql/12/bin"
 cd $BIN
 
-customEnv="PATH=$PATH:$BIN LD_LIBRARY_PATH=$BASE/usr/lib"
+export PATH="$PATH:$BIN"
+export LD_LIBRARY_PATH="$BASE/usr/lib"
 
 # some distros (fedora docker image) dont have su so we need to use sudo
 
@@ -21,7 +22,7 @@ suCmd="su"
 
 if ! [ "$1" = "" ] && [ -f "$BASE/usr/lib/postgresql/12/bin/$1" ]; then
   args="${@:2}"
-  eval $customEnv $BIN/$1 $args
+  eval $BIN/$1 $args
   exit $?
 fi
 
@@ -34,7 +35,7 @@ if [ "$userRunningAs" = "postgres" ] && ! id -u "postgres" >/dev/null 2>&1; then
   chown "$userRunningAs" /home/postgres || sudo chown "$userRunningAs" /home/postgres
 fi
 
-runPrefix=$([ "$(whoami)" = "root" ] && echo "$customEnv $suCmd $userRunningAs bash -c" || echo $customEnv)
+runPrefix=$([ "$(whoami)" = "root" ] && echo "$suCmd $userRunningAs bash -c " || echo "bash -c ")
 
 # we have to turn off a bunch of settings by default
 
@@ -102,24 +103,24 @@ logFile=$([ "$(arg log)" = "" ] && echo "$TEMP_LOG_PATH" || arg log)
 
 # start! LD_DEBUG=libs
 echo "BEFORE"
-$runPrefix "PGDATA=$dbPath $BIN/pg_ctl start -p $BIN/postgres -o '-c config_file=$BASE/etc/postgresql/12/main/postgresql.conf' -D $dbPath" > $logFile 2>&1
+$runPrefix "$BIN/pg_ctl -p $BIN/postgres -o '-c config_file=$CONFIG_FILE' -D $dbPath -l $logFile start"
 echo "AFTER"
 
 # make database, user, password if needed
 
 if $shouldInitDb || ! [ "$(arg database)" = "" ]; then
   dbName=$([ "$(arg database)" = "" ] && echo "postgres" || arg database)
-  $suCmd $userRunningAs bash -c "$customEnv $BIN/createdb $dbName"
+  $runPrefix "$BIN/createdb $dbName"
 fi
 
 if $shouldInitDb || ! [ "$(arg username)" = "" ]; then
   dbUsername=$([ "$(arg username)" = "" ] && echo "username" || arg username)
   dbPassword=$([ "$(arg password)" = "" ] && echo "password" || arg password)
-  $runAsPrefix "$customEnv $BIN/psql -c \"create role $dbUsername with login password '$dbPassword'; alter user $dbUsername with SUPERUSER;\""
+  $runPrefix "$BIN/psql -c \"create role $dbUsername with login password '$dbPassword'; alter user $dbUsername with SUPERUSER;\""
 fi
 
 function siginthandler() {
-  #$suCmd "$userRunningAs" bash -c "$customEnv $BIN/pg_ctl stop -o '-c config_file=$CONFIG_FILE' -D $dbPath"
+  $runPrefix "$BIN/pg_ctl -p $BIN/postgres -o stop"
   kill -15 $PID
   rm -rf $CONFIG_FILE $TEMP_DB_PATH $TEMP_LOG_PATH
   exit
