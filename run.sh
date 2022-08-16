@@ -34,6 +34,8 @@ if [ "$userRunningAs" = "postgres" ] && ! id -u "postgres" >/dev/null 2>&1; then
   chown "$userRunningAs" /home/postgres || sudo chown "$userRunningAs" /home/postgres
 fi
 
+runPrefix=$([ "$(whoami)" = "root" ] && echo "$customEnv $suCmd $userRunningAs bash -c" || echo $customEnv)
+
 # we have to turn off a bunch of settings by default
 
 CONFIG_FILE=$(mktemp /tmp/postgresql-appImage-XXXX)
@@ -84,7 +86,7 @@ dbPath=$([ "$(arg path)" = "" ] && echo "$TEMP_DB_PATH" || arg path)
 chown -R "$userRunningAs" $dbPath || sudo chown -R "$userRunningAs" $dbPath
 rm -f $dbPath/.DS_Store
 shouldInitDb=$([ -z "$(ls -A $dbPath)" ] && echo true || echo false)
-$shouldInitDb && $suCmd "$userRunningAs" bash -c "$customEnv $BIN/pg_ctl -D $dbPath -p $BIN/initdb initdb -o '--locale=$useLocale --noclean'" && printf "host all all 0.0.0.0/0 md5\nlocal all all trust\n" >> "$dbPath/pg_hba.conf"
+$shouldInitDb && $runPrefix "$BIN/pg_ctl -D $dbPath -p $BIN/initdb initdb -o '--locale=$useLocale --noclean'" && printf "host all all 0.0.0.0/0 md5\nlocal all all trust\n" >> "$dbPath/pg_hba.conf"
 ! [ -d "$dbPath/stats" ] && $suCmd $userRunningAs bash -c "mkdir $dbPath/stats"
 
 # need to make sure address can connect
@@ -100,7 +102,7 @@ logFile=$([ "$(arg log)" = "" ] && echo "$TEMP_LOG_PATH" || arg log)
 
 # start! LD_DEBUG=libs
 echo "BEFORE"
-$suCmd "$userRunningAs" bash -c "$customEnv $BIN/pg_ctl start -p $BIN/postgres -o '-c config_file=$BASE/etc/postgresql/12/main/postgresql.conf' -D $dbPath" > $logFile 2>&1
+$runPrefix "PGDATA=$dbPath $BIN/pg_ctl start -p $BIN/postgres -o '-c config_file=$BASE/etc/postgresql/12/main/postgresql.conf' -D $dbPath" > $logFile 2>&1
 echo "AFTER"
 
 # make database, user, password if needed
@@ -113,7 +115,7 @@ fi
 if $shouldInitDb || ! [ "$(arg username)" = "" ]; then
   dbUsername=$([ "$(arg username)" = "" ] && echo "username" || arg username)
   dbPassword=$([ "$(arg password)" = "" ] && echo "password" || arg password)
-  $suCmd "$userRunningAs" bash -c "$customEnv $BIN/psql -c \"create role $dbUsername with login password '$dbPassword'; alter user $dbUsername with SUPERUSER;\""
+  $runAsPrefix "$customEnv $BIN/psql -c \"create role $dbUsername with login password '$dbPassword'; alter user $dbUsername with SUPERUSER;\""
 fi
 
 function siginthandler() {
