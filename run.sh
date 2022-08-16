@@ -1,7 +1,6 @@
 #!/bin/bash
 
 set -x
-set -m
 
 allArgs="$@" # cute little helper to read "--name value" arguments!
 arg() { echo $allArgs | grep "\-\-$1 " | grep -Ev "\-\-$1 \-\-[a-z]" | sed -e "s/^.*\-\-$1 \([^ ^$]*\).*$/\1/" ; }
@@ -94,22 +93,15 @@ $shouldInitDb && $suCmd "$userRunningAs" bash -c "$customEnv $BIN/pg_ctl -D $dbP
 
 # Resolve the log file
 
-#TEMP_LOG_PATH=$(mktemp /tmp/postgresql-logs-XXXX)
-#touch $TEMP_LOG_PATH
-#chown "$userRunningAs" $TEMP_LOG_PATH || sudo chown "$userRunningAs" $TEMP_LOG_PATH
-#logFile=$([ "$(arg log)" = "" ] && echo "$TEMP_LOG_PATH" || arg log)
+TEMP_LOG_PATH=$(mktemp /tmp/postgresql-logs-XXXX)
+touch $TEMP_LOG_PATH
+chown "$userRunningAs" $TEMP_LOG_PATH || sudo chown "$userRunningAs" $TEMP_LOG_PATH
+logFile=$([ "$(arg log)" = "" ] && echo "$TEMP_LOG_PATH" || arg log)
 
 # start! LD_DEBUG=libs
 echo "BEFORE"
-echo "$suCmd $userRunningAs bash -c \"$customEnv $BIN/postgres -c config_file=$CONFIG_FILE -D $dbPath\""
-$suCmd $userRunningAs bash -c "$customEnv $BIN/postgres -c config_file=$CONFIG_FILE -D $dbPath" &
-PID=$?!
+$suCmd postgres bash -c "$customEnv $BIN/pg_ctl start -p $BIN/postgres -o '-c config_file=$BASE/etc/postgresql/12/main/postgresql.conf' -D $dbPath" > $logFile 2>&1
 echo "AFTER"
-
-for i in {1..20}; do
-  $suCmd "$userRunningAs" bash -c "$customEnv $BIN/psql -c \"select now();\"" && break
-  sleep 0.5
-done
 
 # make database, user, password if needed
 
@@ -127,10 +119,9 @@ fi
 function siginthandler() {
   #$suCmd "$userRunningAs" bash -c "$customEnv $BIN/pg_ctl stop -o '-c config_file=$CONFIG_FILE' -D $dbPath"
   kill -15 $PID
-  rm -rf $CONFIG_FILE $TEMP_DB_PATH #$TEMP_LOG_PATH
+  rm -rf $CONFIG_FILE $TEMP_DB_PATH $TEMP_LOG_PATH
   exit
 }
 trap 'siginthandler' EXIT
 
-fg
-#tail -f $logFile
+tail -f $logFile
