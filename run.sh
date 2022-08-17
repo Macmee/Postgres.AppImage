@@ -58,6 +58,7 @@ deleteFromConfigFile hba_file
 deleteFromConfigFile include_dir
 deleteFromConfigFile unix_socket_directories
 deleteFromConfigFile external_pid_file
+deleteFromConfigFile ident_file
 
 echo "listen_addresses = '*'" >> $CONFIG_FILE
 echo "stats_temp_directory = 'stats'" >> $CONFIG_FILE
@@ -136,7 +137,7 @@ if $shouldInitDb || ! [ "$(arg username)" = "" ]; then
 fi
 
 function siginthandler() {
-  $runPrefix "$BIN/pg_ctl -p $BIN/postgres stop"
+  $runPrefix "$BIN/pg_ctl -p $BIN/postgres -o '-p $port -c config_file=$CONFIG_FILE' -D $dbPath -l $logFile stop"
   rm -rf $CONFIG_FILE $TEMP_DB_PATH $TEMP_LOG_PATH
   exit
 }
