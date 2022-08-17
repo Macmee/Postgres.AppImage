@@ -126,13 +126,13 @@ $runPrefix "$BIN/pg_ctl -p $BIN/postgres -o '-p $port -c config_file=$CONFIG_FIL
 
 if $shouldInitDb || ! [ "$(arg database)" = "" ]; then
   dbName=$([ "$(arg database)" = "" ] && echo "$userRunningAs" || arg database)
-  $runPrefix "$BIN/createdb $dbName -h $socketDir/.s.PGSQL.$port"
+  $runPrefix "$BIN/createdb $dbName -h $socketDir -p $port"
 fi
 
 if $shouldInitDb || ! [ "$(arg username)" = "" ]; then
   dbUsername=$([ "$(arg username)" = "" ] && echo "username" || arg username)
   dbPassword=$([ "$(arg password)" = "" ] && echo "password" || arg password)
-  $runPrefix "$BIN/psql -h $socketDir/.s.PGSQL.$port -c \"create role $dbUsername with login password '$dbPassword'; alter user $dbUsername with SUPERUSER;\""
+  $runPrefix "$BIN/psql -h $socketDir -p $port -c \"create role $dbUsername with login password '$dbPassword'; alter user $dbUsername with SUPERUSER;\""
 fi
 
 function siginthandler() {
