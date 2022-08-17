@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -x
+#set -x
 
 allArgs="$@" # cute little helper to read "--name value" arguments!
 arg() { echo $allArgs | grep "\-\-$1 " | grep -Ev "\-\-$1 \-\-[a-z]" | sed -e "s/^.*\-\-$1 \([^ ^$]*\).*$/\1/" ; }
@@ -16,7 +16,7 @@ export LD_LIBRARY_PATH="$BASE/usr/lib"
 # some distros (fedora docker image) dont have su so we need to use sudo
 
 suCmd="su"
-! command -v su > /dev/null && suCmd="sudo -u"
+(! command -v su > /dev/null || [ "$(uname)" = 'darwin' ]) && suCmd="sudo -u"
 
 # if the user specified a specific binary to run, lets do that and bail
 
@@ -39,10 +39,10 @@ runPrefix=$([ "$(whoami)" = "root" ] && echo "$suCmd $userRunningAs bash -c " ||
 
 # we have to turn off a bunch of settings by default
 
-CONFIG_FILE=$(mktemp /tmp/postgresql-appImage-XXXX)
+CONFIG_FILE=$($runPrefix "mktemp /tmp/postgresql-appImage-XXXX")
 cat $BASE/etc/postgresql/12/main/postgresql.conf > $CONFIG_FILE
 
-CONFIG_SWAP_FILE=$(mktemp /tmp/postgresql-appImage-swap-XXXX)
+CONFIG_SWAP_FILE=$($runPrefix "mktemp /tmp/postgresql-appImage-swap-XXXX")
 function deleteFromConfigFile() {
   cat $CONFIG_FILE | grep -v "$1" > $CONFIG_SWAP_FILE
   cat $CONFIG_SWAP_FILE > $CONFIG_FILE
@@ -56,13 +56,31 @@ deleteFromConfigFile listen_addresses
 deleteFromConfigFile stats_temp_directory
 deleteFromConfigFile hba_file
 deleteFromConfigFile include_dir
+deleteFromConfigFile unix_socket_directories
+deleteFromConfigFile external_pid_file
 
 echo "listen_addresses = '*'" >> $CONFIG_FILE
 echo "stats_temp_directory = 'stats'" >> $CONFIG_FILE
 
-mkdir -p /var/run/postgresql/ || sudo mkdir -p /var/run/postgresql/
-touch /var/run/postgresql/.s.PGSQL.5432
-chown -R "$userRunningAs" /var/run/postgresql/ || sudo chown -R "$userRunningAs" /var/run/postgresql/
+# if the caller provided another config file, include it
+
+if ! [ "$(arg config)" = "" ]; then
+  echo "include = '$(arg config)'" >> $CONFIG_FILE
+fi
+
+# determine socket path
+
+socketDir=$([ "$(arg socketDir)" = "" ] && echo "/tmp" || arg socketDir)
+echo "unix_socket_directories = '$socketDir'" >> $CONFIG_FILE
+
+# determine port
+
+port=$([ "$(arg port)" = "" ] && echo "5432" || arg port)
+
+# determine where to write the pidfile to
+
+pidfile=$([ "$(arg pidfile)" = "" ] && $runPrefix "mktemp /tmp/postgresql-pidfile-XXXX" || arg pidfile)
+echo "external_pid_file = '$pidfile'" >> $CONFIG_FILE
 
 # respect given locale and fallback to en_US.utf8 if needed
 
@@ -81,7 +99,7 @@ chown "$userRunningAs" $CONFIG_FILE || sudo chown "$userRunningAs" $CONFIG_FILE
 
 # resolve the database path and init the db there if the folder is empty
 
-TEMP_DB_PATH=$(mktemp -d /tmp/postgresql-temp-db-XXXX)
+TEMP_DB_PATH=$($runPrefix "mktemp -d /tmp/postgresql-temp-db-XXXX")
 dbPath=$([ "$(arg path)" = "" ] && echo "$TEMP_DB_PATH" || arg path)
 ! [ -d "$dbPath" ] && mkdir -p $dbPath
 chown -R "$userRunningAs" $dbPath || sudo chown -R "$userRunningAs" $dbPath
@@ -96,15 +114,13 @@ $shouldInitDb && $runPrefix "$BIN/pg_ctl -D $dbPath -p $BIN/initdb initdb -o '--
 
 # Resolve the log file
 
-TEMP_LOG_PATH=$(mktemp /tmp/postgresql-logs-XXXX)
+TEMP_LOG_PATH=$($runPrefix "mktemp /tmp/postgresql-logs-XXXX")
 touch $TEMP_LOG_PATH
 chown "$userRunningAs" $TEMP_LOG_PATH || sudo chown "$userRunningAs" $TEMP_LOG_PATH
 logFile=$([ "$(arg log)" = "" ] && echo "$TEMP_LOG_PATH" || arg log)
 
 # start! LD_DEBUG=libs
-echo "BEFORE"
-$runPrefix "$BIN/pg_ctl -p $BIN/postgres -o '-c config_file=$CONFIG_FILE' -D $dbPath -l $logFile start"
-echo "AFTER"
+$runPrefix "$BIN/pg_ctl -p $BIN/postgres -o '-p $port -c config_file=$CONFIG_FILE' -D $dbPath -l $logFile start"
 
 # make database, user, password if needed
 
