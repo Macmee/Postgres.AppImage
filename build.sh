@@ -1,15 +1,6 @@
 #!/bin/bash
 
 #set -x
-# DOCKER_DEFAULT_PLATFORM=linux/amd64 docker run --rm -v $HOME/scrapyard/portable-postgres:$SCRIPT_DIR -it debian:buster /bin/bash
-
-
-# export DEBIAN_FRONTEND=noninteractive
-# apt -y install gnupg2 wget lsb-release apt-utils
-# wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
-# echo "deb http://apt.postgresql.org/pub/repos/apt/ `lsb_release -cs`-pgdg main" | tee  /etc/apt/sources.list.d/pgdg.list
-# apt update
-# apt -y install postgresql-12 postgresql-client-12 postgis postgresql-12-postgis-3 postgresql-12-postgis-3-scripts
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
@@ -52,10 +43,8 @@ chmod 777 $SCRIPT_DIR/$arch/root/usr/lib/libm.so.6
 cp -r /usr/lib/postgresql $SCRIPT_DIR/$arch/root/usr/lib/postgresql
 cp -r /usr/share/postgresql $SCRIPT_DIR/$arch/root/usr/share/postgresql
 cp -r /etc/postgresql $SCRIPT_DIR/$arch/root/etc/postgresql
-#cp -r /var/run/postgresql $SCRIPT_DIR/$arch/root/var/run/postgresql
 
 mkdir -p $SCRIPT_DIR/$arch/root/var/lib/postgresql/12
-mkdir -p /var/run/postgresql
 
 chmod -R 775 $SCRIPT_DIR/$arch/root/var/lib/postgresql
 chmod -R 775 $SCRIPT_DIR/$arch/root/usr/lib/postgresql
