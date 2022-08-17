@@ -65,9 +65,7 @@ echo "stats_temp_directory = 'stats'" >> $CONFIG_FILE
 
 # if the caller provided another config file, include it
 
-if ! [ "$(arg config)" = "" ]; then
-  echo "include = '$(arg config)'" >> $CONFIG_FILE
-fi
+! [ "$(arg configFile)" = "" ] && echo "include = '$(arg configFile)'" >> $CONFIG_FILE
 
 # determine socket path
 
@@ -80,8 +78,8 @@ port=$([ "$(arg port)" = "" ] && echo "5432" || arg port)
 
 # determine where to write the pidfile to
 
-pidfile=$([ "$(arg pidfile)" = "" ] && $runPrefix "mktemp /tmp/postgresql-pidfile-XXXX" || arg pidfile)
-echo "external_pid_file = '$pidfile'" >> $CONFIG_FILE
+pidFile=$([ "$(arg pidFile)" = "" ] && $runPrefix "mktemp /tmp/postgresql-pidfile-XXXX" || arg pidFile)
+echo "external_pid_file = '$pidFile'" >> $CONFIG_FILE
 
 # respect given locale and fallback to en_US.utf8 if needed
 
@@ -98,16 +96,25 @@ echo "lc_numeric = '$useLocale'" >> $CONFIG_FILE
 echo "lc_time = '$useLocale'" >> $CONFIG_FILE
 chown "$userRunningAs" $CONFIG_FILE || sudo chown "$userRunningAs" $CONFIG_FILE
 
-# resolve the database path and init the db there if the folder is empty
+# resolve the database path and init the db there if the folder is empty. noclean because initdb can segfault quite
+# easily unfortunately (probably my fault somehow) but it fails so late that it still works!
 
 TEMP_DB_PATH=$($runPrefix "mktemp -d /tmp/postgresql-temp-db-XXXX")
-dbPath=$([ "$(arg path)" = "" ] && echo "$TEMP_DB_PATH" || arg path)
+dbPath=$([ "$(arg dataDir)" = "" ] && echo "$TEMP_DB_PATH" || arg dataDir)
 ! [ -d "$dbPath" ] && mkdir -p $dbPath
 chown -R "$userRunningAs" $dbPath || sudo chown -R "$userRunningAs" $dbPath
 rm -f $dbPath/.DS_Store
-shouldInitDb=$([ -z "$(ls -A $dbPath)" ] && echo true || echo false)
-$shouldInitDb && $runPrefix "$BIN/pg_ctl -D $dbPath -p $BIN/initdb initdb -o '--locale=$useLocale --noclean'" && printf "host all all 0.0.0.0/0 md5\nlocal all all trust\n" >> "$dbPath/pg_hba.conf"
+[ -z "$(ls -A $dbPath)" ] && $runPrefix "$BIN/pg_ctl -D $dbPath -p $BIN/initdb initdb -o '--locale=$useLocale --noclean'"
 ! [ -d "$dbPath/stats" ] && $runPrefix "mkdir $dbPath/stats"
+
+# deal with the hba file which is what determines who can connect from what ip, type of auth etc
+
+if [ "$(arg hbaFile)" = "" ]; then
+  printf "host all all 0.0.0.0/0 md5\nlocal all all trust\n" >> "$dbPath/pg_hba.conf" # default all local users no pw needed, remote users need pw
+  echo "hba_file = '$dbPath/pg_hba.conf'" >> $CONFIG_FILE
+else
+  echo "hba_file = '$(arg hbaFile)'" >> $CONFIG_FILE
+fi
 
 # need to make sure address can connect
 
@@ -118,7 +125,7 @@ $shouldInitDb && $runPrefix "$BIN/pg_ctl -D $dbPath -p $BIN/initdb initdb -o '--
 TEMP_LOG_PATH=$($runPrefix "mktemp /tmp/postgresql-logs-XXXX")
 touch $TEMP_LOG_PATH
 chown "$userRunningAs" $TEMP_LOG_PATH || sudo chown "$userRunningAs" $TEMP_LOG_PATH
-logFile=$([ "$(arg log)" = "" ] && echo "$TEMP_LOG_PATH" || arg log)
+logFile=$([ "$(arg logFile)" = "" ] && echo "$TEMP_LOG_PATH" || arg logFile)
 
 # start! LD_DEBUG=libs
 $runPrefix "$BIN/pg_ctl -p $BIN/postgres -o '-p $port -c config_file=$CONFIG_FILE' -D $dbPath -l $logFile start"
