@@ -22,6 +22,25 @@ This project makes it incredibly simple to run postgres as a singular binary.
 * running `./Postgres-12-aarch64.AppImage` on its own will run a postgres server with default parameters. A username of `username` password of `password` and default database `postgres`.
 * running `./Postgres-12-aarch64.AppImage --username bob --password abc123 --database myproject --path $HOME/mydbdata` will run a database with the provided username, password and database name, and it will store that database in your home folder in the `mydbdata` folder.
 
+# ⌨️ All Options
+
+NONE of these are required, all of them have (I hope reasonable) defaults:
+
+```bash
+./Postgres-12-aarch64.AppImage \
+  --port 5432 \                        # defaults to 5432
+  --dataDir $HOME/pg/data \            # defaults to /tmp/postgresql-temp-db-XXXX
+  --username aaa \                     # defaults to username
+  --password bbb \                     # defaults to password
+  --database ddd \                     # defaults to postgres
+  --configFile /custom_config.file \   # defaults to none
+  --socketDir /pg \                    # defaults to /tmp
+  --pidFile /pg/pg.pid \               # defaults to /tmp/postgresql-pidfile-XXXX"
+  --logFile /pg/pg.log \               # defaults to /tmp/postgresql-logs-XXXX
+  ---hbaFile /pg/custom_hba_file \     # defaults to a file in /tmp that allows ALL local access and remote access with password required
+  --locale C.UTF-8                     # defaults to system C.UTF-8 if available or en_US.utf8 if not
+```
+
 You can also pass the `--locale C.UTF-8` option to change locales which might be useful for other languages.
 
 # 🧰 Utilities
