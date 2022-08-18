@@ -4,12 +4,12 @@
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
-apt update
-$SCRIPT_DIR/package-install-scripts/postgresql-12.sh
-
-DISPLAY_NAME="Postgres-12"
+VERSION="$([ "$1" = "" ] && echo "12" || echo "$1")"
+DISPLAY_NAME="Postgres-$VERSION"
 NAME="postgresql"
-VERSION="12"
+
+apt update
+$SCRIPT_DIR/package-install-scripts/postgresql-$VERSION.sh
 
 arch=$(uname -m)
 [ "$arch" = "arm64" ] && arch="aarch64"
@@ -23,7 +23,7 @@ mkdir -p $SCRIPT_DIR/$arch/root/var/lib
 mkdir -p $SCRIPT_DIR/$arch/root/var/run
 mkdir -p $SCRIPT_DIR/$arch/root/usr/bin
 
-eval $(find /usr/lib/postgresql/12/bin/ -type f -perm /a+x -exec ldd {} \; \
+eval $(find /usr/lib/postgresql/$VERSION/bin/ -type f -perm /a+x -exec ldd {} \; \
 	| grep so \
 	| sed -e '/^[^\t]/ d' \
 	| sed -e 's/\t//' \
@@ -44,7 +44,7 @@ cp -r /usr/lib/postgresql $SCRIPT_DIR/$arch/root/usr/lib/postgresql
 cp -r /usr/share/postgresql $SCRIPT_DIR/$arch/root/usr/share/postgresql
 cp -r /etc/postgresql $SCRIPT_DIR/$arch/root/etc/postgresql
 
-mkdir -p $SCRIPT_DIR/$arch/root/var/lib/postgresql/12
+mkdir -p $SCRIPT_DIR/$arch/root/var/lib/postgresql/$VERSION
 
 chmod -R 775 $SCRIPT_DIR/$arch/root/var/lib/postgresql
 chmod -R 775 $SCRIPT_DIR/$arch/root/usr/lib/postgresql
@@ -58,6 +58,7 @@ mkdir -p $appPath
 cp $SCRIPT_DIR/logo.png $appPath/
 cp $SCRIPT_DIR/run.sh $appPath/AppRun
 cp -rf $SCRIPT_DIR/$arch/root $appPath/root
+echo $VERSION > $appPath/VERSION
 echo "[Desktop Entry]
 Name=$DISPLAY_NAME
 Exec=AppRun
@@ -69,7 +70,7 @@ Categories=Utility;" > $appPath/$NAME-$VERSION-$arch.desktop
 apt-get -y install libglib2.0-0 file wget
 wget https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-$arch.AppImage
 chmod u+x appimagetool-$arch.AppImage
-./appimagetool-$arch.AppImage --appimage-extract-and-run $appPath
+ARCH=$arch ./appimagetool-$arch.AppImage --appimage-extract-and-run $appPath
 
 mkdir -p $SCRIPT_DIR/dist
 rm -rf $SCRIPT_DIR/dist/$DISPLAY_NAME-$arch.AppImage

@@ -5,9 +5,9 @@
 allArgs="$@" # cute little helper to read "--name value" arguments!
 arg() { echo $allArgs | grep "\-\-$1 " | grep -Ev "\-\-$1 \-\-[a-z]" | sed -e "s/^.*\-\-$1 \([^ ^$]*\).*$/\1/" ; }
 
-
+VERSION="$(cat $APPDIR/VERSION)"
 BASE="$APPDIR/root"
-BIN="$BASE/usr/lib/postgresql/12/bin"
+BIN="$BASE/usr/lib/postgresql/$VERSION/bin"
 cd $BIN
 
 export PATH="$PATH:$BIN"
@@ -20,7 +20,7 @@ suCmd="su"
 
 # if the user specified a specific binary to run, lets do that and bail
 
-if ! [ "$1" = "" ] && [ -f "$BASE/usr/lib/postgresql/12/bin/$1" ]; then
+if ! [ "$1" = "" ] && [ -f "$BASE/usr/lib/postgresql/$VERSION/bin/$1" ]; then
   args="${@:2}"
   eval $BIN/$1 $args
   exit $?
@@ -40,7 +40,7 @@ runPrefix=$([ "$(whoami)" = "root" ] && echo "$suCmd $userRunningAs bash -c " ||
 # we have to turn off a bunch of settings by default
 
 CONFIG_FILE=$($runPrefix "mktemp /tmp/postgresql-appImage-XXXX")
-cat $BASE/etc/postgresql/12/main/postgresql.conf > $CONFIG_FILE
+cat $BASE/etc/postgresql/$VERSION/main/postgresql.conf > $CONFIG_FILE
 
 CONFIG_SWAP_FILE=$($runPrefix "mktemp /tmp/postgresql-appImage-swap-XXXX")
 function deleteFromConfigFile() {
